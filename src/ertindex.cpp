@@ -191,7 +191,7 @@ void ert_build_kmertree(const bwt_t* bwt, const bntseq_t *bns, const uint8_t *pa
 void ert_build_table(const bwt_t* bwt, const bntseq_t *bns, const uint8_t *pac,
                      bwtintv_t ik, bwtintv_t ok[4], uint8_t* mlt_data, uint8_t* mh_data,  
                      uint64_t* size, uint64_t* mh_size, uint8_t* aq, 
-                     uint64_t* numHits, uint64_t* max_next_ptr, uint64_t next_ptr_width,
+                     uint64_t* numHits, uint64_t* max_next_ptr, uint64_t* next_ptr_width,
                      int step, int max_depth) {
 
     uint64_t byte_idx = *size;
@@ -207,6 +207,8 @@ void ert_build_table(const bwt_t* bwt, const bntseq_t *bns, const uint8_t *pac,
     uint64_t xmer_entry = 0;
     uint16_t xmer_data = 0;
     uint64_t mlt_offset = mlt_byte_idx;
+    uint64_t max_ptr = 0;
+    uint64_t ptr_width = 2;
     for (i = 0; i < numXmers; ++i) {
         kmertoquery(i, aq1, xmerSize);
         for (j = 0; j < xmerSize; ++j) {
@@ -253,8 +255,31 @@ void ert_build_table(const bwt_t* bwt, const bntseq_t *bns, const uint8_t *pac,
             memset(n->child_nodes, 0, 4*sizeof(node_t*));
             n->start_addr = mlt_byte_idx;
             ert_build_kmertree(bwt, bns, pac, ik, ok, kmerSize+j, n, step, max_depth);
-            ert_traverse_kmertree(n, mlt_data, mh_data, &mlt_byte_idx, &mh_byte_idx, kmerSize+j, numHits, 
-                                  max_next_ptr, next_ptr_width, step);
+            max_ptr = 0;
+            ptr_width = 2;
+            uint64_t tmp_mlt_byte_idx = mlt_byte_idx;
+            uint64_t tmp_mh_byte_idx = mh_byte_idx;
+            ert_traverse_kmertree(n, mlt_data, mh_data, &tmp_mlt_byte_idx, &tmp_mh_byte_idx, kmerSize+j, numHits, 
+                                  &max_ptr, ptr_width, step);
+            if (max_ptr >= 2048 && max_ptr < 524288) {
+                ptr_width = 3;
+                max_ptr = 0;
+                tmp_mlt_byte_idx = mlt_byte_idx;
+                tmp_mh_byte_idx = mh_byte_idx;
+                ert_traverse_kmertree(n, mlt_data, mh_data, &tmp_mlt_byte_idx, &tmp_mh_byte_idx, kmerSize+j, numHits, 
+                                      &max_ptr, ptr_width, step);
+
+            }
+            if (max_ptr >= 524288) {
+                ptr_width = 4;
+                max_ptr = 0;
+                tmp_mlt_byte_idx = mlt_byte_idx;
+                tmp_mh_byte_idx = mh_byte_idx;
+                ert_traverse_kmertree(n, mlt_data, mh_data, &tmp_mlt_byte_idx, &tmp_mh_byte_idx, kmerSize+j, numHits, 
+                                      &max_ptr, ptr_width, step);
+            }
+            mlt_byte_idx = tmp_mlt_byte_idx;
+            mh_byte_idx = tmp_mh_byte_idx;
             ert_destroy_kmertree(n);
         }
         if (num_hits < 20) {
@@ -263,7 +288,7 @@ void ert_build_table(const bwt_t* bwt, const bntseq_t *bns, const uint8_t *pac,
         else {
             xmer_entry = (mlt_offset << KMER_DATA_BITWIDTH) | xmer_data;
         }
-        uint64_t ptr_width = (next_ptr_width < 4) ? next_ptr_width : 0;
+        ptr_width = (ptr_width < 4) ? ptr_width : 0;
         xmer_entry |= (ptr_width << 22);
         if (step == 1) {
             memcpy(&mlt_data[byte_idx], &xmer_entry, 8);
@@ -272,6 +297,8 @@ void ert_build_table(const bwt_t* bwt, const bntseq_t *bns, const uint8_t *pac,
         mlt_offset = mlt_byte_idx;
         ik = ik_copy;
         prevHits = ik_copy.x[2];
+        *max_next_ptr = (max_ptr > *max_next_ptr) ? max_ptr : *max_next_ptr;
+        *next_ptr_width = (ptr_width > *next_ptr_width) ? ptr_width : *next_ptr_width;
     }
     *size = mlt_byte_idx;
     *mh_size = mh_byte_idx;
@@ -438,10 +465,10 @@ void ert_traverse_kmertree(node_t* n, uint8_t* mlt_data, uint8_t* mh_data, uint6
                 assert(pointerToNextNode < (1 << 26));
                 uint64_t reseed_data = 0;
                 if (numHitsForChildren[j] < 20) {
-                    reseed_data = (pointerToNextNode << 6) | (numHitsForChildren[j]);
+                    reseed_data = (pointerToNextNode << 5) | (numHitsForChildren[j]);
                 }
                 else {
-                    reseed_data = (pointerToNextNode << 6);
+                    reseed_data = (pointerToNextNode << 5);
                 }
                 memcpy(&mlt_data[ptr_byte_idx], &reseed_data, next_ptr_width);
                 ptr_byte_idx += next_ptr_width;
@@ -611,8 +638,8 @@ void* buildIndex(void *arg) {
             ert_traverse_kmertree(n, mlt_data, mh_data, &numBytesPerKmer, &numBytesForMh, 
                                   i, &data->numHits[idx-data->startKmer], &max_next_ptr, next_ptr_width, data->step);
             
-            if (data->step == 0 || data->step == 1) {
-                if (max_next_ptr >= 1024 && max_next_ptr < 262144) {
+            if (data->step == 0) {
+                if (max_next_ptr >= 2048 && max_next_ptr < 524288) {
                     next_ptr_width = 3;
                     max_next_ptr = 0;
                     numBytesPerKmer = 4;
@@ -620,7 +647,7 @@ void* buildIndex(void *arg) {
                     ert_traverse_kmertree(n, mlt_data, mh_data, &numBytesPerKmer, &numBytesForMh, i, 
                                           &data->numHits[idx-data->startKmer], &max_next_ptr, next_ptr_width, data->step); 
                 }
-                if (max_next_ptr >= 262144) {
+                if (max_next_ptr >= 524288) {
                     next_ptr_width = 4;
                     max_next_ptr = 0;
                     numBytesPerKmer = 4;
@@ -666,28 +693,8 @@ void* buildIndex(void *arg) {
             }
             numBytesPerKmer = 4;
             ert_build_table(data->bid->bwt, data->bid->bns, data->bid->pac, ik, ok, mlt_data, mh_data, &numBytesPerKmer,
-                            &numBytesForMh, aq, &data->numHits[idx-data->startKmer], &max_next_ptr, next_ptr_width, data->step,
+                            &numBytesForMh, aq, &data->numHits[idx-data->startKmer], &max_next_ptr, &next_ptr_width, data->step,
                             data->readLength - 1);
-            if (data->step == 0 || data->step == 1) {
-                if (max_next_ptr >= 1024 && max_next_ptr < 262144) {
-                    next_ptr_width = 3;
-                    max_next_ptr = 0;
-                    numBytesPerKmer = 4;
-                    numBytesForMh = 0;
-                    ert_build_table(data->bid->bwt, data->bid->bns, data->bid->pac, ik, ok, mlt_data, mh_data, 
-                                    &numBytesPerKmer, &numBytesForMh, aq, &data->numHits[idx-data->startKmer], 
-                                    &max_next_ptr, next_ptr_width, data->step, data->readLength - 1);
-                }
-                if (max_next_ptr >= 262144) {
-                    next_ptr_width = 4;
-                    max_next_ptr = 0;
-                    numBytesPerKmer = 4;
-                    numBytesForMh = 0;
-                    ert_build_table(data->bid->bwt, data->bid->bns, data->bid->pac, ik, ok, mlt_data, mh_data, 
-                                    &numBytesPerKmer, &numBytesForMh, aq, &data->numHits[idx-data->startKmer], 
-                                    &max_next_ptr, next_ptr_width, data->step, data->readLength - 1);
-                }
-            }
             // 
             // Traverse tree and place data in memory
             //
@@ -909,5 +916,4 @@ void buildKmerTrees(char* kmer_tbl_file_name, bwaidx_t* bid, char* prefix, int n
         }
     }
     free(ml_tbl_file_name);
-    
 }

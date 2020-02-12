@@ -48,7 +48,7 @@ Authors: Vasimuddin Md <vasimuddin.md@intel.com>; Sanchit Misra <sanchit.misra@i
 #define BATCH_SIZE 512               /* Block of reads alloacted to a thread for processing*/
 #define BATCH_MUL 20
 #define SEEDS_PER_CHAIN 1
-#define READ_LEN 260
+#define READ_LEN 265
 
 #define SEQ_LEN8 128
 #define MAX_LINE_LEN 256
@@ -186,7 +186,7 @@ Authors: Vasimuddin Md <vasimuddin.md@intel.com>; Sanchit Misra <sanchit.misra@i
 #define SINGLE_HIT_LEAF 1
 #define INFREQUENT 2
 #define FREQUENT 3
-#define HIT_THRESHOLD 256
+#define HIT_THRESHOLD 4096
 #define DRAM_PAGE_SIZE 24576
 #define LEAF_TBL_BASE_PTR_WIDTH 3
 #define LEAF_TBL_HIT_COUNT_WIDTH 3
