@@ -457,8 +457,8 @@ void getOffsetToChildNode(read_aux_t* raux, uint8_t* mlt_data, uint8_t code, uin
     uint32_t reseed_data = 0;
     nextByteIdx += offset;
     memcpy(&reseed_data, &mlt_data[nextByteIdx], raux->ptr_width);
-    uint32_t jumpByteIdx = reseed_data >> 6;
-    raux->num_hits = (reseed_data & 0x3F);
+    uint32_t jumpByteIdx = reseed_data >> 5;
+    raux->num_hits = (reseed_data & 0x1F);
     nextByteIdx = startByteIdx + jumpByteIdx;
     *byteIdx = nextByteIdx;
 }
@@ -1315,6 +1315,7 @@ void leftExtend(index_aux_t* iaux, read_aux_t* raux, int* i, mem_t* mem, u64v* h
         memcpy(&xmer_entry, &mlt_data[byte_idx + (hashval << 3)], 8);
         code = xmer_entry & METADATA_MASK;
         ptr = xmer_entry >> KMER_DATA_BITWIDTH;
+        raux->ptr_width = (((xmer_entry >> 22) & 3) == 0) ? 4 : ((xmer_entry >> 22) & 3);
         if (idx_first_N != -1) {
             *i += xmerSize;
             mem->rc_end = *i;
@@ -1427,6 +1428,7 @@ void leftExtend_wlimit(index_aux_t* iaux, read_aux_t* raux, int* i, mem_t* mem, 
         code = xmer_entry & METADATA_MASK;
         ptr = xmer_entry >> KMER_DATA_BITWIDTH;
         raux->num_hits = (xmer_entry >> 17) & 0x1F;
+        raux->ptr_width = (((xmer_entry >> 22) & 3) == 0) ? 4 : ((xmer_entry >> 22) & 3);
         if (idx_first_N != -1) {
             *i += xmerSize;
             mem->rc_end = *i;
@@ -1889,6 +1891,7 @@ void rightExtend_fetch_leaves_prefix_reseed(index_aux_t* iaux, read_aux_t* raux,
         ptr = xmer_entry >> KMER_DATA_BITWIDTH;
         // 5 bits to encode number of hits at each node
         raux->num_hits = (xmer_entry >> 17) & 0x1F;
+        raux->ptr_width = (((xmer_entry >> 22) & 3) == 0) ? 4 : ((xmer_entry >> 22) & 3);
         if (code == INVALID) {
             mem->end = i;
         }
@@ -1994,6 +1997,7 @@ void rightExtend_fetch_leaves_prefix(index_aux_t* iaux, read_aux_t* raux, mem_t*
         memcpy(&xmer_entry, &mlt_data[byte_idx + (hashval << 3)], 8);
         code = xmer_entry & METADATA_MASK;
         ptr = xmer_entry >> KMER_DATA_BITWIDTH;
+        raux->ptr_width = (((xmer_entry >> 22) & 3) == 0) ? 4 : ((xmer_entry >> 22) & 3);
         if (code == INVALID) {
             mem->end = i;
         }
@@ -2087,6 +2091,7 @@ void rightExtend_fetch_leaves(index_aux_t* iaux, read_aux_t* raux, mem_t* mem, u
         memcpy(&xmer_entry, &mlt_data[byte_idx + (hashval << 3)], 8);
         code = xmer_entry & METADATA_MASK;
         ptr = xmer_entry >> KMER_DATA_BITWIDTH;
+        raux->ptr_width = (((xmer_entry >> 22) & 3) == 0) ? 4 : ((xmer_entry >> 22) & 3);
         assert(code != INVALID);
         assert(code != SINGLE_HIT_LEAF);
         byte_idx = ptr;
@@ -2223,6 +2228,7 @@ void rightExtend(index_aux_t* iaux, read_aux_t* raux, int* i, mem_t* mem, u64v* 
         code = xmer_entry & METADATA_MASK;
         lep_data = (xmer_entry >> METADATA_BITWIDTH) & 0xF;
         ptr = xmer_entry >> KMER_DATA_BITWIDTH;
+        raux->ptr_width = (((xmer_entry >> 22) & 3) == 0) ? 4 : ((xmer_entry >> 22) & 3);
         int xmerLen = 0;
         if (raux->l_seq - *i > xmerSize) {
             xmerLen = xmerSize;
@@ -2404,6 +2410,7 @@ void rightExtend_wlimit(index_aux_t* iaux, read_aux_t* raux, int* i, mem_t* mem,
         ptr = xmer_entry >> KMER_DATA_BITWIDTH;
         // 5 bits to encode hits for each node
         raux->num_hits = (xmer_entry >> 17) & 0x1F;
+        raux->ptr_width = (((xmer_entry >> 22) & 3) == 0) ? 4 : ((xmer_entry >> 22) & 3);
         int xmerLen = 0;
         if (raux->l_seq - *i > xmerSize) {
             xmerLen = xmerSize;
@@ -2538,6 +2545,7 @@ void rightExtend_last(index_aux_t* iaux, read_aux_t* raux, int* i, mem_t* mem, u
         code = xmer_entry & METADATA_MASK;
         ptr = xmer_entry >> KMER_DATA_BITWIDTH;
         raux->num_hits = (xmer_entry >> 17) & 0x1F;
+        raux->ptr_width = (((xmer_entry >> 22) & 3) == 0) ? 4 : ((xmer_entry >> 22) & 3);
         if (code == INVALID) {
             *i += xmerSize;
         }
