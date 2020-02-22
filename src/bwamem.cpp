@@ -2426,82 +2426,14 @@ void mem_chain2aln_across_reads_V2(const mem_opt_t *opt, const bntseq_t *bns,
 					sp.seqid = c->seqid;
 					sp.regid = av->n - 1;
 						
-					// assert(numPairsLeft < BATCH_SIZE * SEEDS_PER_READ);
-					if (numPairsLeft >= *wsize) {
-						fprintf(stderr, "[LOG][%0.4d] Re-allocating seqPairArrays Left\n", tid);
-						*wsize += 1000;
-						seqBufLeftRef = (uint8_t*) realloc(seqBufLeftRef,
-                                                          *wsize * MAX_SEQ_LEN_REF *
-                                                          sizeof(int8_t));
-                        mmc->seqBufLeftRef[tid * MAX_LINE_LEN] = seqBufLeftRef;
-						seqBufLeftQer = (uint8_t*) realloc(seqBufLeftQer,
-                                                          *wsize * MAX_SEQ_LEN_QER *
-                                                          sizeof(int8_t));
-                        mmc->seqBufLeftQer[tid * MAX_LINE_LEN] = seqBufLeftQer;
-						seqBufRightRef = (uint8_t*) realloc(seqBufRightRef,
-                                                          *wsize * MAX_SEQ_LEN_REF *
-                                                          sizeof(int8_t));
-                        mmc->seqBufRightRef[tid * MAX_LINE_LEN] = seqBufRightRef;
-						seqBufRightQer = (uint8_t*) realloc(seqBufRightQer,
-                                                          *wsize * MAX_SEQ_LEN_QER *
-                                                          sizeof(int8_t));
-                        mmc->seqBufRightQer[tid * MAX_LINE_LEN] = seqBufRightQer;
-
-                        seqPairArrayAux = (SeqPair *) realloc(seqPairArrayAux,
-															  *wsize * sizeof(SeqPair));
-						mmc->seqPairArrayAux[tid * MAX_LINE_LEN] = seqPairArrayAux;
-						seqPairArrayLeft128 = (SeqPair *) realloc(seqPairArrayLeft128,
-																  *wsize * sizeof(SeqPair));
-						mmc->seqPairArrayLeft128[tid * MAX_LINE_LEN] = seqPairArrayLeft128;
-						seqPairArrayRight128 = (SeqPair *) realloc(seqPairArrayRight128,
-																   *wsize * sizeof(SeqPair));
-						mmc->seqPairArrayRight128[tid * MAX_LINE_LEN] = seqPairArrayRight128;
-					}
-
-					
 					sp.idq = leftQerOffset;
 					sp.idr = leftRefOffset;
-					uint8_t *qs = seqBufLeftQer + sp.idq;
-					uint8_t *rs = seqBufLeftRef + sp.idr;
 					
 					leftQerOffset += s->qbeg;
-                    // assert(leftQerOffset < MAX_SEQ_LEN_QER * BATCH_SIZE * SEEDS_PER_READ);
-					if (leftQerOffset >= (*wsize * MAX_SEQ_LEN_QER)) {
-                        *wsize += 1000;
-						seqBufLeftRef = (uint8_t*) realloc(seqBufLeftRef,
-                                                          *wsize * MAX_SEQ_LEN_REF *
-                                                          sizeof(int8_t));
-                        mmc->seqBufLeftRef[tid * MAX_LINE_LEN] = seqBufLeftRef;
-						seqBufLeftQer = (uint8_t*) realloc(seqBufLeftQer,
-                                                          *wsize * MAX_SEQ_LEN_QER *
-                                                          sizeof(int8_t));
-                        mmc->seqBufLeftQer[tid * MAX_LINE_LEN] = seqBufLeftQer;
-						seqBufRightRef = (uint8_t*) realloc(seqBufRightRef,
-                                                          *wsize * MAX_SEQ_LEN_REF *
-                                                          sizeof(int8_t));
-                        mmc->seqBufRightRef[tid * MAX_LINE_LEN] = seqBufRightRef;
-						seqBufRightQer = (uint8_t*) realloc(seqBufRightQer,
-                                                          *wsize * MAX_SEQ_LEN_QER *
-                                                          sizeof(int8_t));
-                        mmc->seqBufRightQer[tid * MAX_LINE_LEN] = seqBufRightQer;
-
-                        seqPairArrayAux = (SeqPair *) realloc(seqPairArrayAux,
-															  *wsize * sizeof(SeqPair));
-						mmc->seqPairArrayAux[tid * MAX_LINE_LEN] = seqPairArrayAux;
-						seqPairArrayLeft128 = (SeqPair *) realloc(seqPairArrayLeft128,
-																  *wsize * sizeof(SeqPair));
-						mmc->seqPairArrayLeft128[tid * MAX_LINE_LEN] = seqPairArrayLeft128;
-						seqPairArrayRight128 = (SeqPair *) realloc(seqPairArrayRight128,
-																   *wsize * sizeof(SeqPair));
-						mmc->seqPairArrayRight128[tid * MAX_LINE_LEN] = seqPairArrayRight128;
-                    }
-
-					for (int i = 0; i < s->qbeg; ++i) qs[i] = query[s->qbeg - 1 - i];  // vectorize it!!
-					
 					tmp = s->rbeg - rmax[0];
 					leftRefOffset += tmp;
 					// assert(leftRefOffset < MAX_SEQ_LEN_REF * BATCH_SIZE * SEEDS_PER_READ);
-					if (leftRefOffset >= (*wsize * MAX_SEQ_LEN_REF)) {
+					if (numPairsLeft >= *wsize || leftQerOffset >= (*wsize * MAX_SEQ_LEN_QER) || leftRefOffset >= (*wsize * MAX_SEQ_LEN_REF)) {
                         *wsize += 1000;
 						seqBufLeftRef = (uint8_t*) realloc(seqBufLeftRef,
                                                           *wsize * MAX_SEQ_LEN_REF *
@@ -2531,6 +2463,10 @@ void mem_chain2aln_across_reads_V2(const mem_opt_t *opt, const bntseq_t *bns,
 						mmc->seqPairArrayRight128[tid * MAX_LINE_LEN] = seqPairArrayRight128;
                     }
 
+
+					uint8_t *qs = seqBufLeftQer + sp.idq;
+					uint8_t *rs = seqBufLeftRef + sp.idr;
+					for (int i = 0; i < s->qbeg; ++i) qs[i] = query[s->qbeg - 1 - i];  // vectorize it!!
 					for (int64_t i = 0; i < tmp; ++i) rs[i] = rseq[tmp - 1 - i]; //seq1
 					
 					sp.len2 = s->qbeg;
@@ -2572,82 +2508,16 @@ void mem_chain2aln_across_reads_V2(const mem_opt_t *opt, const bntseq_t *bns,
 					sp.seqid = c->seqid;
 					sp.regid = av->n - 1;
 
-					// assert(numPairsRight < BATCH_SIZE * SEEDS_PER_READ);
-					if (numPairsRight >= *wsize) {
-						fprintf(stderr, "[LOG] [%0.4d] Re-allocating seqPairArrays Right\n", tid);
-                        *wsize += 1000;
-						seqBufLeftRef = (uint8_t*) realloc(seqBufLeftRef,
-                                                          *wsize * MAX_SEQ_LEN_REF *
-                                                          sizeof(int8_t));
-                        mmc->seqBufLeftRef[tid * MAX_LINE_LEN] = seqBufLeftRef;
-						seqBufLeftQer = (uint8_t*) realloc(seqBufLeftQer,
-                                                          *wsize * MAX_SEQ_LEN_QER *
-                                                          sizeof(int8_t));
-                        mmc->seqBufLeftQer[tid * MAX_LINE_LEN] = seqBufLeftQer;
-						seqBufRightRef = (uint8_t*) realloc(seqBufRightRef,
-                                                          *wsize * MAX_SEQ_LEN_REF *
-                                                          sizeof(int8_t));
-                        mmc->seqBufRightRef[tid * MAX_LINE_LEN] = seqBufRightRef;
-						seqBufRightQer = (uint8_t*) realloc(seqBufRightQer,
-                                                          *wsize * MAX_SEQ_LEN_QER *
-                                                          sizeof(int8_t));
-                        mmc->seqBufRightQer[tid * MAX_LINE_LEN] = seqBufRightQer;
-
-                        seqPairArrayAux = (SeqPair *) realloc(seqPairArrayAux,
-															  *wsize * sizeof(SeqPair));
-						mmc->seqPairArrayAux[tid * MAX_LINE_LEN] = seqPairArrayAux;
-						seqPairArrayLeft128 = (SeqPair *) realloc(seqPairArrayLeft128,
-																  *wsize * sizeof(SeqPair));
-						mmc->seqPairArrayLeft128[tid * MAX_LINE_LEN] = seqPairArrayLeft128;
-						seqPairArrayRight128 = (SeqPair *) realloc(seqPairArrayRight128,
-																   *wsize * sizeof(SeqPair));
-						mmc->seqPairArrayRight128[tid * MAX_LINE_LEN] = seqPairArrayRight128;
-					}
-
-					
 					sp.len2 = l_query - qe;
 					sp.len1 = rmax[1] - rmax[0] - re;
 
 					sp.idq = rightQerOffset;
 					sp.idr = rightRefOffset;
-					uint8_t *qs = seqBufRightQer + sp.idq;
-					uint8_t *rs = seqBufRightRef + sp.idr;
 					
 					rightQerOffset += sp.len2;
-					// assert(rightQerOffset < MAX_SEQ_LEN_QER * BATCH_SIZE * SEEDS_PER_READ);
-					if (rightQerOffset >= (*wsize * MAX_SEQ_LEN_QER)) {
-                        *wsize += 1000;
-						seqBufLeftRef = (uint8_t*) realloc(seqBufLeftRef,
-                                                          *wsize * MAX_SEQ_LEN_REF *
-                                                          sizeof(int8_t));
-                        mmc->seqBufLeftRef[tid * MAX_LINE_LEN] = seqBufLeftRef;
-						seqBufLeftQer = (uint8_t*) realloc(seqBufLeftQer,
-                                                          *wsize * MAX_SEQ_LEN_QER *
-                                                          sizeof(int8_t));
-                        mmc->seqBufLeftQer[tid * MAX_LINE_LEN] = seqBufLeftQer;
-						seqBufRightRef = (uint8_t*) realloc(seqBufRightRef,
-                                                          *wsize * MAX_SEQ_LEN_REF *
-                                                          sizeof(int8_t));
-                        mmc->seqBufRightRef[tid * MAX_LINE_LEN] = seqBufRightRef;
-						seqBufRightQer = (uint8_t*) realloc(seqBufRightQer,
-                                                          *wsize * MAX_SEQ_LEN_QER *
-                                                          sizeof(int8_t));
-                        mmc->seqBufRightQer[tid * MAX_LINE_LEN] = seqBufRightQer;
-
-                        seqPairArrayAux = (SeqPair *) realloc(seqPairArrayAux,
-															  *wsize * sizeof(SeqPair));
-						mmc->seqPairArrayAux[tid * MAX_LINE_LEN] = seqPairArrayAux;
-						seqPairArrayLeft128 = (SeqPair *) realloc(seqPairArrayLeft128,
-																  *wsize * sizeof(SeqPair));
-						mmc->seqPairArrayLeft128[tid * MAX_LINE_LEN] = seqPairArrayLeft128;
-						seqPairArrayRight128 = (SeqPair *) realloc(seqPairArrayRight128,
-																   *wsize * sizeof(SeqPair));
-						mmc->seqPairArrayRight128[tid * MAX_LINE_LEN] = seqPairArrayRight128;
-                    }
-
 					rightRefOffset += sp.len1;
 					// assert(rightRefOffset < MAX_SEQ_LEN_REF * BATCH_SIZE * SEEDS_PER_READ);
-					if (rightRefOffset >= (*wsize * MAX_SEQ_LEN_REF)) {
+					if (numPairsRight >= *wsize || rightQerOffset >= (*wsize * MAX_SEQ_LEN_QER) || rightRefOffset >= (*wsize * MAX_SEQ_LEN_REF)) {
                         *wsize += 1000;
 						seqBufLeftRef = (uint8_t*) realloc(seqBufLeftRef,
                                                           *wsize * MAX_SEQ_LEN_REF *
@@ -2681,6 +2551,8 @@ void mem_chain2aln_across_reads_V2(const mem_opt_t *opt, const bntseq_t *bns,
 					tprof[PE23][tid] += sp.len1 + sp.len2;
 
 					
+					uint8_t *qs = seqBufRightQer + sp.idq;
+					uint8_t *rs = seqBufRightRef + sp.idr;
 					for (int i = 0; i < sp.len2; ++i) qs[i] = query[qe + i];
 
 					for (int i = 0; i < sp.len1; ++i) rs[i] = rseq[re + i]; //seq1
