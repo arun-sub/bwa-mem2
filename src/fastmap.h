@@ -43,7 +43,6 @@ Authors: Vasimuddin Md <vasimuddin.md@intel.com>; Sanchit Misra <sanchit.misra@i
 #include <fstream>
 #include "bwa.h"
 #include "bwamem.h"
-#include "ertseeding.h"
 #include "kthread.h"
 #include "kvec.h"
 #include "utils.h"

@@ -93,7 +93,6 @@ class FMI_search: public indexEle
     
     int build_index();
     void load_index();
-    void load_index_other_elements(int which);
 
     void getSMEMs(uint8_t *enc_qdb,
                   int32_t numReads,
